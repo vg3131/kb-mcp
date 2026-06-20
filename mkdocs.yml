@@ -1,6 +1,6 @@
 site_name: Worx+ TechTalk Knowledge Base
 site_description: TechTalk knowledge base for Worx+ concrete polishing equipment and techniques
-docs_dir: worx-techtalk-markdown-kb
+docs_dir: mcp-server/worx-techtalk-markdown-kb
 
 theme:
   name: material

@@ -25,12 +25,14 @@ from kb import catalogue as catalogue_mod
 
 # --- Configuration ----------------------------------------------------------
 
-# Root of the markdown knowledge base. Defaults to the sibling folder that's
-# already in this repo (worx-techtalk-markdown-kb), so a checkout of the whole
-# `knowledge-base` repo works with zero config.
+# Root of the markdown knowledge base. Defaults to worx-techtalk-markdown-kb/
+# *inside* this folder (not a sibling) — Railway's Root Directory=mcp-server
+# setting only pulls this subfolder into the deploy checkout, so the data has
+# to live inside it too, or KB_ROOT silently resolves to a path that doesn't
+# exist and the index ends up empty (every tool call "succeeds" with 0 results).
 KB_ROOT = os.environ.get(
     "KB_ROOT",
-    os.path.join(os.path.dirname(__file__), "..", "worx-techtalk-markdown-kb"),
+    os.path.join(os.path.dirname(__file__), "worx-techtalk-markdown-kb"),
 )
 
 # 0.0.0.0 is required on Railway (and most PaaS) so the process accepts

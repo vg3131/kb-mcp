@@ -1,11 +1,21 @@
 # Worx+ Knowledge Base — MCP Server
 
 A remote MCP server that gives Claude direct access to the `worx-techtalk-markdown-kb`
-markdown tree (one level up: `../worx-techtalk-markdown-kb`). No database — every tool
-reads the markdown files (and `catalogue/products.csv`) directly off disk.
+markdown tree (now nested inside this folder: `mcp-server/worx-techtalk-markdown-kb`).
+No database — every tool reads the markdown files (and `catalogue/products.csv`)
+directly off disk.
 
-Implemented and smoke-tested against the real data (330 indexed documents, 867
-catalogue rows). Not yet deployed to Railway.
+Implemented, smoke-tested against the real data (330 indexed documents, 867
+catalogue rows), and deployed to Railway.
+
+**Note on the nested data folder:** `worx-techtalk-markdown-kb/` lives *inside*
+`mcp-server/` rather than as a sibling, even though that means it's no longer next
+to `mkdocs.yml` at the repo root. This isn't cosmetic — Railway's Root
+Directory=`mcp-server` setting only pulls that subfolder into the deploy checkout,
+so a sibling folder silently doesn't exist in the deployed container (the index
+builds with 0 documents and every tool call "succeeds" with empty results, no
+error). Keeping the data inside the isolated subtree is what makes the deploy
+actually work. `mkdocs.yml`'s `docs_dir` was updated to point at the new path.
 
 ## Layout
 
@@ -24,6 +34,8 @@ mcp-server/
 │   │                      content type, no search needed.
 │   └── catalogue.py       list_products tool — reads products.csv directly,
 │                          filters in memory (category, max price, keyword).
+├── worx-techtalk-markdown-kb/   The markdown corpus itself (moved here from the
+│                                 repo root so it deploys with Root Directory isolation).
 ├── requirements.txt
 ├── railway.json          Railway start command.
 └── .env.example
@@ -69,11 +81,15 @@ python server.py
 
 1. Push this repo to GitHub.
 2. In Railway, create a new service from the repo, and set **Root Directory** to
-   `mcp-server` (so Railway only builds/runs this subfolder, while `KB_ROOT` still
-   reaches the markdown tree via the relative `../worx-techtalk-markdown-kb` path
-   inside the checked-out repo).
-3. Railway auto-detects Python from `requirements.txt`; `railway.json` pins the
+   `mcp-server`. Railway only pulls files from that subfolder into the deploy
+   checkout — this is why `worx-techtalk-markdown-kb/` lives inside `mcp-server/`
+   rather than next to it; a sibling folder would never make it into the container.
+3. Set **Config File Path** (same Settings → Source section) to
+   `mcp-server/railway.json` if it isn't picked up automatically — Railway looks
+   for the config file relative to the repo root regardless of Root Directory.
+4. Railway auto-detects Python from `requirements.txt`; `railway.json` pins the
    start command explicitly so it doesn't have to guess.
-4. Railway injects `PORT` automatically — `server.py` reads it via `os.environ`.
-5. Once deployed, add the Railway URL (`https://<service>.up.railway.app/mcp` or
-   whatever path the SDK mounts) as a custom connector in Claude.
+5. Railway injects `PORT` automatically — `server.py` reads it via `os.environ`.
+6. Once deployed, generate a public domain (Settings → Networking → Generate
+   Domain) and add `https://<service>.up.railway.app/mcp` (note the `/mcp` path)
+   as a custom connector in Claude.

@@ -30,7 +30,15 @@ ALL_TERMS_BONUS = 10
 # while also risking the ~150K char tool-result limit by themselves. Excluded
 # from default search; still reachable via content_type="consolidated"
 # explicitly, or list_by_category()/get_document().
-EXCLUDED_BY_DEFAULT = {"consolidated"}
+#
+# "other" is the fallback bucket for files with no recognized frontmatter
+# `type` and no mapped top-level folder — packaging/meta artifacts like
+# MANIFEST.md, or stale docs describing tooling that's since been removed
+# from the repo (e.g. a leftover page about a SQLite build script that no
+# longer exists). They're real files and still reachable via
+# list_by_category()/get_document() if something specifically needs them,
+# but they shouldn't surface as an answer to an unrelated keyword search.
+EXCLUDED_BY_DEFAULT = {"consolidated", "other"}
 
 # Defensive budget on total body characters returned in one search() call.
 # Guards against a handful of large-but-legitimate files (e.g. a big catalogue

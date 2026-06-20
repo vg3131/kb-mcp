@@ -5,7 +5,7 @@ markdown tree (now nested inside this folder: `mcp-server/worx-techtalk-markdown
 No database — every tool reads the markdown files (and `catalogue/products.csv`)
 directly off disk.
 
-Implemented, smoke-tested against the real data (330 indexed documents, 867
+Implemented, smoke-tested against the real data (329 indexed documents, 867
 catalogue rows), and deployed to Railway.
 
 **Note on the nested data folder:** `worx-techtalk-markdown-kb/` lives *inside*
@@ -44,7 +44,7 @@ mcp-server/
 ## Why no database
 
 The earlier version of this project had a SQLite layer built from the markdown via
-`build.py`. It was dropped: the whole corpus is ~330 files / ~700KB, small enough
+`build.py`. It was dropped: the whole corpus is ~329 files / ~700KB, small enough
 that reading files directly is simpler and removes a second source of truth that
 needed rebuilding every time the markdown changed. The one thing the database did
 that file structure doesn't — a cross-reference graph between content items, people,

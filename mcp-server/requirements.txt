@@ -1,8 +1,13 @@
+# Pinned to exact versions, not >=: Railway runs `pip install` fresh on every
+# deploy, so an unbounded floor could silently pull a future breaking release
+# into production with no code change on our side. These are the versions
+# this server was built and smoke-tested against — bump deliberately.
+
 # Official MCP Python SDK (includes the FastMCP helper + Streamable HTTP transport)
-mcp>=1.2.0
+mcp==1.28.0
 
 # Parses YAML frontmatter out of the markdown files (title, type, generated date, etc.)
-python-frontmatter>=1.1.0
+python-frontmatter==1.3.0
 
 # ASGI server Streamable HTTP runs on top of
-uvicorn>=0.30.0
+uvicorn==0.49.0

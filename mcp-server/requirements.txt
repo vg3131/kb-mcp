@@ -1,0 +1,8 @@
+# Official MCP Python SDK (includes the FastMCP helper + Streamable HTTP transport)
+mcp>=1.2.0
+
+# Parses YAML frontmatter out of the markdown files (title, type, generated date, etc.)
+python-frontmatter>=1.1.0
+
+# ASGI server Streamable HTTP runs on top of
+uvicorn>=0.30.0

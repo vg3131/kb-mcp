@@ -6,7 +6,7 @@ No database — every tool reads the markdown files (and `catalogue/products.csv
 directly off disk.
 
 Implemented, smoke-tested against the real data (329 indexed documents, 867
-catalogue rows), and deployed to Railway.
+catalogue rows), and deployed to Railway. Also deployable to Vercel — see below.
 
 **Note on the nested data folder:** `worx-techtalk-markdown-kb/` lives *inside*
 `mcp-server/` rather than as a sibling, even though that means it's no longer next
@@ -38,6 +38,7 @@ mcp-server/
 │                                 repo root so it deploys with Root Directory isolation).
 ├── requirements.txt
 ├── railway.json          Railway start command.
+├── vercel.json           Vercel function config (maxDuration).
 └── .env.example
 ```
 
@@ -64,9 +65,9 @@ not bringing a live database back.
 ## Auth
 
 None. Running authless per the decision to keep this simple for personal use —
-the data isn't sensitive, but note that on a public Railway URL, the URL itself
-is the only thing gating access. Easy to add a shared-secret header check in
-`server.py` later if that changes.
+the data isn't sensitive, but note that on a public Railway/Vercel URL, the URL
+itself is the only thing gating access. Easy to add a shared-secret header check
+in `server.py` later if that changes.
 
 ## Running locally
 
@@ -93,3 +94,45 @@ python server.py
 6. Once deployed, generate a public domain (Settings → Networking → Generate
    Domain) and add `https://<service>.up.railway.app/mcp` (note the `/mcp` path)
    as a custom connector in Claude.
+
+## Deploying to Vercel
+
+Works because this server has no session state and no database — `server.py`
+exposes a module-level `app = mcp.streamable_http_app()` (an ASGI app) with
+`stateless_http=True`, which is what Vercel's Python runtime needs, since it
+doesn't guarantee repeat requests land on the same instance. `python server.py`
+still works locally/on Railway too — that path is unaffected, `mcp.run()` just
+builds its own copy of the same app internally.
+
+1. Push this repo to GitHub (or deploy straight from the CLI without git —
+   see step 4).
+2. In the Vercel dashboard: **Add New → Project**, import the repo, and set
+   **Root Directory** to `mcp-server` (Settings → General during import). Same
+   reason as Railway: only that subfolder — including
+   `worx-techtalk-markdown-kb/` — needs to ship, and Vercel bundles everything
+   reachable under the Root Directory by default.
+3. Framework Preset: Vercel auto-detects Python from `requirements.txt` and
+   picks `server.py` up as the entrypoint (it's one of the filenames the
+   Python runtime scans for: `app.py`, `index.py`, `server.py`, `main.py`,
+   `wsgi.py`, `asgi.py`). No build command needed.
+4. Or skip the dashboard entirely with the CLI:
+   ```bash
+   npm i -g vercel
+   cd mcp-server
+   vercel login
+   vercel        # links/creates the project, deploys a preview
+   vercel --prod # promotes to production
+   ```
+   Run from inside `mcp-server/`, the CLI treats that directory as project
+   root — no separate Root Directory setting needed in this path.
+5. No environment variables required. `KB_ROOT` already resolves relative to
+   `server.py`'s own location; `HOST`/`PORT` are unused by Vercel (it doesn't
+   call `mcp.run()`).
+6. Once deployed, add `https://<project>.vercel.app/mcp` (same `/mcp` path,
+   Vercel serves the whole app at the project root) as a custom connector in
+   Claude.
+
+Smoke-tested locally by importing `server.app` into a Starlette `TestClient`
+and sending an `initialize` + `tools/list` call through it (bypassing
+`mcp.run()`/uvicorn entirely, the same way Vercel would invoke it) — both
+returned 200 with the expected JSON-RPC bodies.

@@ -10,7 +10,7 @@ Run locally:
     pip install -r requirements.txt
     python server.py
 
-Deploy: see README.md (Railway, Root Directory = mcp-server/).
+Deploy: see README.md (Railway or Vercel, Root Directory = mcp-server/).
 """
 
 import os
@@ -54,7 +54,34 @@ DOC_INDEX = build_index(KB_ROOT)
 # turns that off unless transport_security is set explicitly. Leaving it off
 # for now, consistent with the no-auth decision — revisit together if that
 # decision changes.
-mcp = FastMCP("worx-techtalk-kb", host=HOST, port=PORT)
+#
+# stateless_http=True: Vercel's Python runtime doesn't give session affinity
+# between requests (invocations can land on different instances, or a fresh
+# cold start), so the default session-based Streamable HTTP mode — which
+# expects follow-up calls to hit the same server process — doesn't work
+# there. Stateless mode re-derives everything from each request instead of
+# relying on server-side session state. Harmless on Railway too, since this
+# server has no session state to begin with (DOC_INDEX is read-only).
+#
+# json_response=True: return plain JSON instead of an SSE stream for each
+# response. Simpler to serve correctly from a serverless function; not
+# required by Vercel specifically, but pairs naturally with stateless_http.
+mcp = FastMCP(
+    "worx-techtalk-kb",
+    host=HOST,
+    port=PORT,
+    stateless_http=True,
+    json_response=True,
+)
+
+# ASGI app, used two different ways depending on where this runs:
+#   - Vercel: server.py is one of the entrypoint filenames its Python
+#     runtime auto-detects, and it looks for a module-level `app`. Vercel
+#     serves this directly — mcp.run() below is never called there.
+#   - Railway / local: unused. `python server.py` still goes through
+#     mcp.run() at the bottom of this file, which builds its own copy of
+#     this app internally and serves it with uvicorn.
+app = mcp.streamable_http_app()
 
 
 # --- Tools -------------------------------------------------------------------

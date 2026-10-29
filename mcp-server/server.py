@@ -13,7 +13,7 @@ Run locally:
     pip install -r requirements.txt
     python server.py
 
-Deploy: see README.md (Railway or Vercel, Root Directory = mcp-server/).
+Deploy: see README.md (Vercel, Root Directory = mcp-server/).
 """
 
 import os
@@ -34,17 +34,18 @@ from kb import browse as browse_mod  # noqa: E402
 # --- Configuration ----------------------------------------------------------
 
 # Root of the markdown knowledge base. Defaults to worx-techtalk-markdown-kb/
-# *inside* this folder (not a sibling) — Railway's Root Directory=mcp-server
-# setting only pulls this subfolder into the deploy checkout, so the data has
-# to live inside it too, or KB_ROOT silently resolves to a path that doesn't
-# exist and the index ends up empty (every tool call "succeeds" with 0 results).
+# *inside* this folder (not a sibling) — Vercel's Root Directory=mcp-server
+# setting only deploys this subfolder, so the data has to live inside it too,
+# or KB_ROOT silently resolves to a path that doesn't exist and the index ends
+# up empty (every tool call "succeeds" with 0 results).
 KB_ROOT = os.environ.get(
     "KB_ROOT",
     os.path.join(os.path.dirname(__file__), "worx-techtalk-markdown-kb"),
 )
 
-# 0.0.0.0 is required on Railway (and most PaaS) so the process accepts
-# connections from the platform's reverse proxy, not just localhost.
+# Only used by `python server.py` (local runs); Vercel never calls mcp.run().
+# Keep the 0.0.0.0 default even so: see the transport-security note below —
+# a localhost host would make FastMCP reject Vercel's Host header.
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8000"))
 
@@ -58,8 +59,10 @@ DOC_INDEX = build_index(KB_ROOT)
 # against the installed SDK (mcp 1.28.0).
 #
 # Note: FastMCP only auto-enables DNS-rebinding / Host-header protection when
-# host is "127.0.0.1"/"localhost"/"::1". Binding 0.0.0.0 (required for Railway)
-# turns that off unless transport_security is set explicitly. Leaving it off
+# host is "127.0.0.1"/"localhost"/"::1", and then only accepts localhost Host
+# headers — which would reject every request to the deployed *.vercel.app URL,
+# since the same `app` object is what Vercel serves. Binding 0.0.0.0 keeps
+# that off unless transport_security is set explicitly. Leaving it off
 # for now, consistent with the no-auth decision — revisit together if that
 # decision changes.
 #
@@ -68,8 +71,8 @@ DOC_INDEX = build_index(KB_ROOT)
 # cold start), so the default session-based Streamable HTTP mode — which
 # expects follow-up calls to hit the same server process — doesn't work
 # there. Stateless mode re-derives everything from each request instead of
-# relying on server-side session state. Harmless on Railway too, since this
-# server has no session state to begin with (DOC_INDEX is read-only).
+# relying on server-side session state. This server has no session state to
+# begin with (DOC_INDEX is read-only), so nothing is lost.
 #
 # json_response=True: return plain JSON instead of an SSE stream for each
 # response. Simpler to serve correctly from a serverless function; not
@@ -86,7 +89,7 @@ mcp = FastMCP(
 #   - Vercel: server.py is one of the entrypoint filenames its Python
 #     runtime auto-detects, and it looks for a module-level `app`. Vercel
 #     serves this directly — mcp.run() below is never called there.
-#   - Railway / local: unused. `python server.py` still goes through
+#   - Local: unused. `python server.py` still goes through
 #     mcp.run() at the bottom of this file, which builds its own copy of
 #     this app internally and serves it with uvicorn.
 app = mcp.streamable_http_app()

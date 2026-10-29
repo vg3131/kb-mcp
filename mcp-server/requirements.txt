@@ -1,4 +1,4 @@
-# Pinned to exact versions, not >=: Railway runs `pip install` fresh on every
+# Pinned to exact versions, not >=: Vercel runs `pip install` fresh on every
 # deploy, so an unbounded floor could silently pull a future breaking release
 # into production with no code change on our side. These are the versions
 # this server was built and smoke-tested against — bump deliberately.

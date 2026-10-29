@@ -1,10 +1,13 @@
 """
 Entry point for the Worx+ Knowledge Base MCP server.
 
-Exposes four tools backed directly by the markdown tree in
-worx-techtalk-markdown-kb/ — no database, no separate fetch step. search()
-in particular returns full document bodies inline, so Claude gets the actual
-.md content it needs to answer a question in one call.
+Exposes four tools over the markdown tree in worx-techtalk-markdown-kb/.
+search() and list_products(query=...) rank results with hybrid retrieval on
+MongoDB Atlas (vector + BM25 keyword search, fused with RRF — see
+kb/hybrid.py), then serve full bodies from the bundled markdown. If Atlas or
+Voyage is unavailable they fall back to the original on-disk search
+automatically (kb/retrieval.py). get_document and list_by_category read
+straight from disk.
 
 Run locally:
     pip install -r requirements.txt
@@ -17,11 +20,16 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
-from kb.index import build_index
-from kb import search as search_mod
-from kb import documents as documents_mod
-from kb import browse as browse_mod
-from kb import catalogue as catalogue_mod
+from kb.config import load_env
+
+# Local runs read mcp-server/.env; on Vercel this is a no-op and the
+# project's Environment Variables are used instead.
+load_env()
+
+from kb.index import build_index  # noqa: E402
+from kb import retrieval  # noqa: E402
+from kb import documents as documents_mod  # noqa: E402
+from kb import browse as browse_mod  # noqa: E402
 
 # --- Configuration ----------------------------------------------------------
 
@@ -90,24 +98,33 @@ app = mcp.streamable_http_app()
 @mcp.tool()
 def search(query: str, content_type: str | None = None, category: str | None = None, limit: int = 5) -> list[dict]:
     """
-    Keyword search across the knowledge base. Returns the FULL content of
-    whichever documents look relevant — title, path, content_type, category,
-    frontmatter, and the entire markdown body — so you can read and answer
-    directly from the result, no follow-up get_document call needed.
+    Search the Worx+ TechTalk knowledge base: knowledge cards, application
+    guides, the polished-concrete process guide, GK-series machine docs and
+    presenter profiles. Returns the FULL content of the best-matching
+    documents (title, path, frontmatter and the entire markdown body), so you
+    can answer directly from the result without calling get_document.
+
+    Matches by meaning as well as by exact terms, so ask the way the user
+    would: a full question or a description of the symptom works well
+    ("floor looks cloudy after sealing", "why do stones pop out at resin
+    stage"), as do model names and product names ("GK-850", "Tempo XD").
+
+    This does NOT search the product catalogue. For prices, SKUs, product
+    codes or "which product / how much", use list_products. For a question
+    that needs both (e.g. which sealer for a humid site and what it costs),
+    call both tools.
 
     Args:
-        query: 2-4 keyword terms work better than a full sentence
-            (e.g. "densifier saturation" rather than "tell me about densifiers").
-        content_type: optional filter, e.g. "knowledge_card", "application_guide",
-            "process_guide", "machine_doc", "catalogue_category", "presenter_profile".
-            consolidated/* mega-files (the whole knowledge base concatenated)
-            are excluded unless you pass content_type="consolidated" explicitly.
-        category: optional filter on the folder-derived category, e.g. "machines",
-            "polishing", "business", "worxplus".
-        limit: max number of documents to return. Kept small by default since
-            each result is a full document body, not a snippet.
+        query: the question, symptom or term to search for.
+        content_type: optional filter: "knowledge_card", "application_guide",
+            "process_guide", "machine_doc", "presenter_profile". Other values
+            (e.g. "consolidated", "product_category") search those on-disk
+            files with plain keyword matching.
+        category: optional filter on the folder-derived category, e.g.
+            "machines", "polishing", "densifiers", "troubleshooting", "worxplus".
+        limit: max documents to return (each is a full document, not a snippet).
     """
-    return search_mod.search(DOC_INDEX, query, content_type=content_type, category=category, limit=limit)
+    return retrieval.search_documents(DOC_INDEX, query, content_type=content_type, category=category, limit=limit)
 
 
 @mcp.tool()
@@ -146,21 +163,28 @@ def list_products(
     limit: int = 200,
 ) -> list[dict]:
     """
-    Filter the product catalogue (867 SKUs from catalogue/products.csv) directly —
-    no search index involved, just in-memory filtering of the CSV.
+    Look up products in the Worx+ catalogue (867 SKUs): code, description,
+    price (AUD), category and product page URL. Use this for anything about
+    specific products, prices, SKUs or "what do you sell for X".
+
+    With a query, results are ranked best match first and matched by meaning,
+    so descriptive queries work ("HEPA filter for the 55T vacuum", "grinding
+    accelerator for hard slabs", "potassium densifier 15 litre"). Product
+    codes (format NNNN-NNNN, e.g. "0752-2901") anywhere in the query are
+    matched exactly and always returned first. Ranked results are capped at
+    the top 25.
+
+    Without a query, it lists the catalogue filtered by category and/or price.
 
     Args:
-        category: e.g. "Grinding Tools", "Sealer", "Vacuum Parts".
-        max_price: only return products at or below this price.
-        query: optional keyword match against the product description.
-        limit: max rows to return (default 200). An unfiltered call would
-            otherwise return all 867 rows, which is too large for one
-            response — narrow with category/max_price/query first if you
-            need rows outside the first `limit`.
+        category: e.g. "Sealer", "Grinding Tools", "Vacuum Parts", "Densifier",
+            "Respirators", "Leads", "Repair" (case-insensitive).
+        max_price: only products at or below this price.
+        query: what the user is looking for, in their words, or a product code.
+        limit: max rows to return (default 200; the full unfiltered catalogue
+            is too large for one response, so narrow with category/max_price).
     """
-    return catalogue_mod.list_products(
-        KB_ROOT, category=category, max_price=max_price, query=query, limit=limit
-    )
+    return retrieval.list_products(KB_ROOT, category=category, max_price=max_price, query=query, limit=limit)
 
 
 # --- Run ----------------------------------------------------------------------

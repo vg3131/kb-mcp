@@ -6,8 +6,13 @@ index.py involvement.
 
 import csv
 import os
+import re
 
 CATALOGUE_CSV_RELPATH = os.path.join("catalogue", "products.csv")
+
+# Every catalogue code is NNNN-NNNN (checked against all 867 rows). Shared
+# with kb/hybrid.py's exact-match layer.
+PRODUCT_CODE = re.compile(r"\b\d{4}-\d{4}\b")
 
 # Parsed rows cached per kb_root after first load — 867 rows is cheap to keep
 # around, and re-parsing the CSV on every call would be wasted work.
@@ -38,6 +43,29 @@ def _load_rows(kb_root: str) -> list[dict]:
             )
 
     _cache[csv_path] = rows
+    return rows
+
+
+def is_code_lookup(query: str) -> bool:
+    """True for "0752-2901" / "how much is 0752-2901": a product code plus at
+    most a few filler words. The exact match is then the whole answer, and
+    ranked "similar" products after it would just be noise."""
+    if not PRODUCT_CODE.search(query):
+        return False
+    remaining = PRODUCT_CODE.sub(" ", query).split()
+    return len(remaining) <= 3
+
+
+def exact_code_rows(kb_root: str, query: str, max_price: float | None = None) -> list[dict]:
+    """Rows whose product code appears verbatim in the query, in query order.
+    Deterministic and offline — the fallback twin of hybrid.exact_products()."""
+    codes = list(dict.fromkeys(PRODUCT_CODE.findall(query)))
+    if not codes:
+        return []
+    by_code = {r["code"]: r for r in _load_rows(kb_root)}
+    rows = [by_code[c] for c in codes if c in by_code]
+    if max_price is not None:
+        rows = [r for r in rows if r["price"] is not None and r["price"] <= max_price]
     return rows
 
 

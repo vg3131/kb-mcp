@@ -11,3 +11,10 @@ python-frontmatter==1.3.0
 
 # ASGI server Streamable HTTP runs on top of
 uvicorn==0.49.0
+
+# MongoDB Atlas driver (vector + keyword search). 4.x bundles dnspython, which
+# mongodb+srv:// connection strings need. Sync client on purpose — see kb/atlas.py.
+pymongo==4.18.3
+
+# Voyage embeddings are called over plain HTTP with httpx (already installed by
+# the mcp SDK), not the voyageai SDK, to keep the Vercel bundle small.

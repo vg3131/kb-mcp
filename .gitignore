@@ -1,3 +1,14 @@
 .DS_Store
 __pycache__/
 *.pyc
+
+# Local secrets (MongoDB URI, embedding API key)
+.env
+.env.*
+!.env.example
+
+# Local virtualenv
+.venv/
+
+# Eval query-embedding cache
+mcp-server/eval/.query_cache.json
